@@ -9,6 +9,10 @@ uniform vec3 u_camup;
 
 out vec4 FragColor;
 
+vec3 sphere1Color = vec3(1.0, 0.0, 0.0);
+vec3 box1Color = vec3(0.0, 1.0, 0.0);
+vec3 box2Color = vec3(0.0, 0.0, 1.0);
+
 // START OF SDFs
 float sdfSphere(in vec3 point, in vec3 center, float r)
 {
@@ -20,19 +24,29 @@ float sdfBox(in vec3 point, in vec3 center, in vec3 b){
   return length(max(q,0.0)) + min(max(q.x,max(q.y,q.z)),0.0);
 }
 
-float opUnion( float d1, float d2 ) { return min(d1,d2); }
+vec4 opUnion( vec4 d1, vec4 d2 ) {
+    if(d1.w < d2.w) return d1;
+    else return d2;
+}
 
-float sdfScene(in vec3 p){
-    return opUnion(opUnion( sdfSphere(p, vec3(0.0), 1), sdfBox(p, vec3(2.0, 0.0, 0.0), vec3(0.8))), sdfBox(p, vec3(-5.0, 0.0, 0.0), vec3(2.0, 1.0, 0.5)));
+vec4 sdfScene(in vec3 p){
+    return opUnion( 
+        opUnion( 
+            vec4(sphere1Color, sdfSphere(p, vec3(0.0), 1)), 
+            vec4(box1Color, sdfBox(p, vec3(2.0, 0.0, 0.0), vec3(0.8)))
+        ),
+        vec4(box2Color, sdfBox(p, vec3(-5.0, 0.0, 0.0), vec3(2.0, 1.0, 0.5)))
+    );
 }
 // END OF SDFs
 
 vec3 sceneNormal(in vec3 p){
     vec3 smallstep = vec3(0.00001, 0.0, 0.0);
+    float sdf = sdfScene(p).w;
 
-    float gradient_x = sdfScene(p.xyz + smallstep.xyy) - sdfScene(p.xyz - smallstep.xyy);
-    float gradient_y = sdfScene(p.xyz + smallstep.yxy) - sdfScene(p.xyz - smallstep.yxy);
-    float gradient_z = sdfScene(p.xyz + smallstep.yyx) - sdfScene(p.xyz - smallstep.yyx);
+    float gradient_x = sdfScene(p.xyz + smallstep.xyy).w - sdf;
+    float gradient_y = sdfScene(p.xyz + smallstep.yxy).w - sdf;
+    float gradient_z = sdfScene(p.xyz + smallstep.yyx).w - sdf;
 
     return normalize(vec3(gradient_x, gradient_y, gradient_z));
 }
@@ -51,15 +65,15 @@ vec3 ray_march(in vec3 ro, in vec3 rd)
     float total_dist = 0.0;
     vec3 pos;
 
-    for(int i = 0; i < 35; i++){
+    for(int i = 0; i < 100; i++){
         // incrementally travel following the ray
         pos = ro + rd * total_dist;
 
         // calculate distance from scene
-        float dist = sdfScene(pos);
+        vec4 dist = sdfScene(pos);
         
         // if close to the scene, color the pixel as needed 
-        if(dist <= 0.001){
+        if(dist.w <= 0.001){
             // Basic Phong illumination
             // diffuse
             lightDir = normalize(lightPos - pos);
@@ -73,11 +87,11 @@ vec3 ray_march(in vec3 ro, in vec3 rd)
             float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32);
             vec3 specular = specularStrength * spec * lightColor;
 
-            return (ambient + diffuse + specular) * vec3(1.0, 0.0, 0.0);
+            return (ambient + diffuse + specular) * dist.xyz;
         }
 
         // increment distance by the highest possible value (sphere marching)
-        total_dist += dist;
+        total_dist += dist.w;
 
         // if too far out, bail out
         if(total_dist > 1000) break;
