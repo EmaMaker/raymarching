@@ -12,6 +12,7 @@ out vec4 FragColor;
 vec3 sphere1Color = vec3(1.0, 0.0, 0.0);
 vec3 box1Color = vec3(0.0, 1.0, 0.0);
 vec3 box2Color = vec3(0.0, 0.0, 1.0);
+vec3 boxLightColor = vec3( 1.0);
 
 // START OF LIGHTNING
 vec3 lightColor = vec3(1.0);
@@ -34,6 +35,7 @@ struct phong{
 phongdata phongSphere = phongdata(vec3(1.0, 0.0, 0.0), vec3(1.0, 0.0, 0.0), vec3(1.0, 0.0, 0.0), 256.0);
 phongdata phongBox1 = phongdata(vec3(0.0, 1.0, 0.0), vec3(0.0, 1.0, 0.0), vec3(0.0, 1.0, 0.0), 32.0);
 phongdata phongBox2 = phongdata(vec3(0.0, 0.0, 1.0), vec3(0.0, 0.0, 1.0), vec3(0.0, 0.0, 1.0), 32.0);
+phongdata phongLightBox = phongdata(lightColor, lightColor, lightColor,  256.0);
 
 // START OF SDFs
 float sdfSphere(in vec3 point, in vec3 center, float r)
@@ -57,7 +59,10 @@ phong sdfScene(in vec3 p){
             phong(phongSphere, sdfSphere(p, vec3(0.0), 1)), 
             phong(phongBox1, sdfBox(p, vec3(2.0, 0.0, 0.0), vec3(0.8)))
         ),
-        phong(phongBox2, sdfBox(p, vec3(-5.0, 0.0, 0.0), vec3(2.0, 1.0, 0.5)))
+        opUnion(
+            phong(phongBox2, sdfBox(p, vec3(-5.0, 0.0, 0.0), vec3(2.0, 1.0, 0.5))),
+            phong(phongLightBox, sdfBox(p, lightPos, vec3(0.1)))
+        )
     );
 }
 // END OF SDFs
