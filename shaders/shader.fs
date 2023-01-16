@@ -13,6 +13,28 @@ vec3 sphere1Color = vec3(1.0, 0.0, 0.0);
 vec3 box1Color = vec3(0.0, 1.0, 0.0);
 vec3 box2Color = vec3(0.0, 0.0, 1.0);
 
+// START OF LIGHTNING
+vec3 lightColor = vec3(1.0);
+vec3 lightPos = vec3(5.0);
+vec3 lightDir;
+// END OF LIGHTNING
+
+struct phongdata{
+    vec3 ambient;
+    vec3 diffuse;
+    vec3 specular;
+    float shininess;
+};
+
+struct phong{
+    phongdata data;
+    float sdf;
+};
+
+phongdata phongSphere = phongdata(vec3(1.0, 0.0, 0.0), vec3(1.0, 0.0, 0.0), vec3(1.0, 0.0, 0.0), 256.0);
+phongdata phongBox1 = phongdata(vec3(0.0, 1.0, 0.0), vec3(0.0, 1.0, 0.0), vec3(0.0, 1.0, 0.0), 32.0);
+phongdata phongBox2 = phongdata(vec3(0.0, 0.0, 1.0), vec3(0.0, 0.0, 1.0), vec3(0.0, 0.0, 1.0), 32.0);
+
 // START OF SDFs
 float sdfSphere(in vec3 point, in vec3 center, float r)
 {
@@ -24,41 +46,32 @@ float sdfBox(in vec3 point, in vec3 center, in vec3 b){
   return length(max(q,0.0)) + min(max(q.x,max(q.y,q.z)),0.0);
 }
 
-vec4 opUnion( vec4 d1, vec4 d2 ) {
-    if(d1.w < d2.w) return d1;
+phong opUnion( phong d1, phong d2 ) {
+    if(d1.sdf < d2.sdf) return d1;
     else return d2;
 }
 
-vec4 sdfScene(in vec3 p){
+phong sdfScene(in vec3 p){
     return opUnion( 
         opUnion( 
-            vec4(sphere1Color, sdfSphere(p, vec3(0.0), 1)), 
-            vec4(box1Color, sdfBox(p, vec3(2.0, 0.0, 0.0), vec3(0.8)))
+            phong(phongSphere, sdfSphere(p, vec3(0.0), 1)), 
+            phong(phongBox1, sdfBox(p, vec3(2.0, 0.0, 0.0), vec3(0.8)))
         ),
-        vec4(box2Color, sdfBox(p, vec3(-5.0, 0.0, 0.0), vec3(2.0, 1.0, 0.5)))
+        phong(phongBox2, sdfBox(p, vec3(-5.0, 0.0, 0.0), vec3(2.0, 1.0, 0.5)))
     );
 }
 // END OF SDFs
 
 vec3 sceneNormal(in vec3 p){
     vec3 smallstep = vec3(0.00001, 0.0, 0.0);
-    float sdf = sdfScene(p).w;
+    float sdf = sdfScene(p).sdf;
 
-    float gradient_x = sdfScene(p.xyz + smallstep.xyy).w - sdf;
-    float gradient_y = sdfScene(p.xyz + smallstep.yxy).w - sdf;
-    float gradient_z = sdfScene(p.xyz + smallstep.yyx).w - sdf;
+    float gradient_x = sdfScene(p.xyz + smallstep.xyy).sdf - sdf;
+    float gradient_y = sdfScene(p.xyz + smallstep.yxy).sdf - sdf;
+    float gradient_z = sdfScene(p.xyz + smallstep.yyx).sdf - sdf;
 
     return normalize(vec3(gradient_x, gradient_y, gradient_z));
 }
-
-// START OF LIGHTNING
-float ambientStrength = 0.15;
-float specularStrength = 0.5;
-vec3 lightColor = vec3(1.0);
-vec3 ambient = lightColor * ambientStrength;
-vec3 lightPos = vec3(5.0);
-vec3 lightDir;
-// END OF LIGHTNING
 
 vec3 ray_march(in vec3 ro, in vec3 rd)
 {
@@ -70,28 +83,31 @@ vec3 ray_march(in vec3 ro, in vec3 rd)
         pos = ro + rd * total_dist;
 
         // calculate distance from scene
-        vec4 dist = sdfScene(pos);
+        phong dist = sdfScene(pos);
         
         // if close to the scene, color the pixel as needed 
-        if(dist.w <= 0.001){
+        if(dist.sdf <= 0.001){
             // Basic Phong illumination
+            // ambient
+            vec3 ambient = lightColor*dist.data.ambient;
+
             // diffuse
             lightDir = normalize(lightPos - pos);
             float diff = max(dot(sceneNormal(pos), lightDir), 0.0);
-            vec3 diffuse = diff * lightColor;
+            vec3 diffuse = diff * dist.data.diffuse;
 
             // specular
             vec3 viewDir = normalize(u_camorigin - pos);
             vec3 reflectDir = reflect(-lightDir, sceneNormal(pos));
 
-            float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32);
-            vec3 specular = specularStrength * spec * lightColor;
+            float spec = pow(max(dot(viewDir, reflectDir), 0.0), dist.data.shininess);
+            vec3 specular = lightColor * spec * dist.data.specular;
 
-            return (ambient + diffuse + specular) * dist.xyz;
+            return (vec3(0.1) * ambient + vec3(0.45) * diffuse +vec3(0.45) *  specular);
         }
 
         // increment distance by the highest possible value (sphere marching)
-        total_dist += dist.w;
+        total_dist += dist.sdf;
 
         // if too far out, bail out
         if(total_dist > 1000) break;
