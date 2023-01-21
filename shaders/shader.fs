@@ -53,14 +53,72 @@ phong opUnion( phong d1, phong d2 ) {
     else return d2;
 }
 
+phong opSmoothUnion( phong d1, phong d2, float k ) {
+    float h = clamp( 0.5 + 0.5*(d2.sdf-d1.sdf)/k, 0.0, 1.0 );
+    float m = (d1.sdf + d2.sdf) / 2.0;
+
+    phongdata data;
+    data.ambient = mix(d2.data.ambient, d1.data.ambient, h) - vec3(k*h*(1.0-h));
+    data.diffuse = mix(d2.data.diffuse, d1.data.diffuse, h) - vec3(k*h*(1.0-h));
+    data.specular = mix(d2.data.specular, d1.data.specular, h) - vec3(k*h*(1.0-h));
+    data.shininess = mix( d2.data.shininess, d1.data.shininess, h ) - k*h*(1.0-h);
+    phong ret = phong(data, mix( d2.sdf, d1.sdf, h ) - k*h*(1.0-h));
+
+    return ret;
+}
+
+phong opIntersection( phong d1, phong d2 ) {
+    if(d1.sdf < d2.sdf) return d2;
+    else return d1;
+}
+
+// from d2 substract d1
+phong opDifference( phong d1, phong d2 ) {
+    if(-d1.sdf > d2.sdf) {
+        d1.sdf *= -1;
+        return d1;
+    }
+    else return d2;
+}
+
+vec3 s = vec3(0.0);
+vec3 r = vec3(3.0, 5.0, 2.0);
+vec3 rl = vec3(2.0, 1.0, 3.0);
+vec3 l = r*rl*0.5;
+
 phong sdfScene(in vec3 p){
     return opUnion( 
-        opUnion( 
-            phong(phongSphere, sdfSphere(p, vec3(0.0), 1)), 
-            phong(phongBox1, sdfBox(p, vec3(2.0, 0.0, 0.0), vec3(0.8)))
+        opUnion(
+            opUnion(
+                opUnion(
+                    phong(phongSphere, sdfSphere(p, vec3(0.0), 1)), 
+                    phong(phongBox1, sdfBox(p, vec3(2.0, 0.0, 0.0), vec3(0.8)))
+                ),
+                opUnion(
+                    opDifference(
+                        phong(phongBox1, sdfBox(p, vec3(-3.5, 3.5, 0.0), vec3(0.5))),
+                        phong(phongSphere, sdfSphere(p, vec3(-4.0, 4.0, 0.0), 1))
+                    ),
+                    opDifference(
+                        phong(phongSphere, sdfSphere(p, vec3(-4.0, 8.0, 0.0), 0.75+ 0.25 * (1+sin(2*u_time)))),
+                        phong(phongBox1, sdfBox(p, vec3(-4.0, 8.0, 0.0), vec3(0.8)))
+                    )
+                )
+            ),
+            opUnion(
+                opIntersection(
+                    phong(phongSphere, sdfSphere(p, vec3(0.0, 4.0, 0.0), 1)), 
+                    phong(phongBox1, sdfBox(p, vec3(0.0, 4.5, 0.0), vec3(1)))
+                ),
+                opSmoothUnion(
+                    phong(phongBox2, sdfBox(p, vec3(0.0, 0.0, 6.0), vec3(3.0, 0.2, 3.0)) ),
+                    phong(phongSphere, sdfSphere(p, vec3(0.0, 1.0+sin(u_time), 6.0), 1)),
+                    0.5
+                )
+            )
         ),
         opUnion(
-            phong(phongBox2, sdfBox(p, vec3(-5.0, 0.0, 0.0), vec3(2.0, 1.0, 0.5))),
+            phong(phongBox2, sdfBox(p, vec3(5.0, 0.0, 0.0), vec3(2.0, 1.0, 0.5))),
             phong(phongLightBox, sdfBox(p, lightPos, vec3(0.1)))
         )
     );
