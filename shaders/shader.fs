@@ -14,6 +14,7 @@ vec3 box1Color = vec3(0.0, 1.0, 0.0);
 vec3 box2Color = vec3(0.0, 0.0, 1.0);
 vec3 boxLightColor = vec3( 1.0);
 
+<<<<<<< HEAD
 // START OF LIGHTNING
 vec3 lightColor = vec3(1.0);
 vec3 lightPos = vec3(5.0);
@@ -32,10 +33,6 @@ struct phong{
     float sdf;
 };
 
-phongdata phongSphere = phongdata(vec3(1.0, 0.0, 0.0), vec3(1.0, 0.0, 0.0), vec3(1.0, 0.0, 0.0), 256.0);
-phongdata phongBox1 = phongdata(vec3(0.0, 1.0, 0.0), vec3(0.0, 1.0, 0.0), vec3(0.0, 1.0, 0.0), 32.0);
-phongdata phongBox2 = phongdata(vec3(0.0, 0.0, 1.0), vec3(0.0, 0.0, 1.0), vec3(0.0, 0.0, 1.0), 32.0);
-phongdata phongLightBox = phongdata(lightColor, lightColor, lightColor,  256.0);
 
 // START OF SDFs
 float sdfSphere(in vec3 point, in vec3 center, float r)
@@ -48,97 +45,41 @@ float sdfBox(in vec3 point, in vec3 center, in vec3 b){
   return length(max(q,0.0)) + min(max(q.x,max(q.y,q.z)),0.0);
 }
 
-phong opUnion( phong d1, phong d2 ) {
-    if(d1.sdf < d2.sdf) return d1;
+vec4 opUnion( vec4 d1, vec4 d2 ) {
+    if(d1.w < d2.w) return d1;
     else return d2;
 }
 
-phong opSmoothUnion( phong d1, phong d2, float k ) {
-    float h = clamp( 0.5 + 0.5*(d2.sdf-d1.sdf)/k, 0.0, 1.0 );
-    float m = (d1.sdf + d2.sdf) / 2.0;
-
-    phongdata data;
-    data.ambient = mix(d2.data.ambient, d1.data.ambient, h) - vec3(k*h*(1.0-h));
-    data.diffuse = mix(d2.data.diffuse, d1.data.diffuse, h) - vec3(k*h*(1.0-h));
-    data.specular = mix(d2.data.specular, d1.data.specular, h) - vec3(k*h*(1.0-h));
-    data.shininess = mix( d2.data.shininess, d1.data.shininess, h ) - k*h*(1.0-h);
-    phong ret = phong(data, mix( d2.sdf, d1.sdf, h ) - k*h*(1.0-h));
-
-    return ret;
-}
-
-phong opIntersection( phong d1, phong d2 ) {
-    if(d1.sdf < d2.sdf) return d2;
-    else return d1;
-}
-
-// from d2 substract d1
-phong opDifference( phong d1, phong d2 ) {
-    if(-d1.sdf > d2.sdf) {
-        d1.sdf *= -1;
-        return d1;
-    }
-    else return d2;
-}
-
-//works well if bounding box of object < replength
-//reps is the number of times the pattern gets repeated on each axis in each direction (e.g. 1 -> 1 up and 1 down)
-vec3 opFiniteRepeat(vec3 pos, vec3 start, vec3 reps, vec3 replength){
-    vec3 d = round((pos - start) / replength);
-    vec3 r = clamp(d, -reps, reps);
-    return start + r * replength;
-}
-
-// TODO: fix even repetitions starting from bottom-left instead of center
-// The commented out line should do the trick, but introduces glitches instead
-vec3 opFiniteRepeat2(vec3 pos, vec3 start, vec3 reps, vec3 replength){    
-    vec3 d = round((pos-start) / replength);
-
-    vec3 m = mod(reps, 2.0); // 0 if even, 1 if odd
-    vec3 m1 = vec3(1.0) - m; //1 if even , 0 if odd
-
-    vec3 r1 = (reps-m)*0.5;
-    vec3 r = r1 + clamp(d, -r1, r1 - vec3(1.0)*m1 ); //m - vec3(1.0) should be the same;
-
-    vec3 start1 = start - r1 * replength;// + 0.5*replength*m1;
-    return start1 + r*replength ;
-}
-
-vec3 s = vec3(0.0);
-vec3 r = vec3(3.0, 5.0, 2.0);
-vec3 rl = vec3(2.0, 1.0, 3.0);
-vec3 l = r*rl*0.5;
-
-phong sdfScene(in vec3 p){
-    return  opUnion(
-            opSmoothUnion(
-                phong(phongSphere, sdfSphere(p, opFiniteRepeat2(p, vec3(0.0, 1.0+sin(2*u_time), 0.0), vec3(3.0, 1.0, 3.0), rl), 0.4)),
-                phong(phongBox1, 
-                    sdfBox(p, 
-                            opFiniteRepeat2(p, s, vec3(3.0, 1.0, 3.0), rl), 
-                            vec3(0.5, 0.1, 0.5) 
-                        )
-                    ),
-                0.4
-            ),
-            opDifference(
-                phong(phongSphere, sdfSphere(p, vec3(0.0, 5.0, 0.0), 0.25 + 0.25* (1+sin(u_time)))),
-                phong(phongBox2, sdfBox(p,  vec3(0.0, 5.0, 0.0), vec3(0.5)))
-            )
-        );
+vec4 sdfScene(in vec3 p){
+    return opUnion( 
+        opUnion( 
+            vec4(sphere1Color, sdfSphere(p, vec3(0.0), 1)), 
+            vec4(box1Color, sdfBox(p, vec3(2.0, 0.0, 0.0), vec3(0.8)))
+        ),
+        vec4(box2Color, sdfBox(p, vec3(-5.0, 0.0, 0.0), vec3(2.0, 1.0, 0.5)))
+    );
 }
 // END OF SDFs
 
 vec3 sceneNormal(in vec3 p){
     vec3 smallstep = vec3(0.00001, 0.0, 0.0);
-    float sdf = sdfScene(p).sdf;
+    float sdf = sdfScene(p).w;
 
-    float gradient_x = sdfScene(p.xyz + smallstep.xyy).sdf - sdf;
-    float gradient_y = sdfScene(p.xyz + smallstep.yxy).sdf - sdf;
-    float gradient_z = sdfScene(p.xyz + smallstep.yyx).sdf - sdf;
+    float gradient_x = sdfScene(p.xyz + smallstep.xyy).w - sdf;
+    float gradient_y = sdfScene(p.xyz + smallstep.yxy).w - sdf;
+    float gradient_z = sdfScene(p.xyz + smallstep.yyx).w - sdf;
 
     return normalize(vec3(gradient_x, gradient_y, gradient_z));
 }
+
+// START OF LIGHTNING
+float ambientStrength = 0.15;
+float specularStrength = 0.5;
+vec3 lightColor = vec3(1.0);
+vec3 ambient = lightColor * ambientStrength;
+vec3 lightPos = vec3(5.0);
+vec3 lightDir;
+// END OF LIGHTNING
 
 vec3 ray_march(in vec3 ro, in vec3 rd)
 {
@@ -150,31 +91,28 @@ vec3 ray_march(in vec3 ro, in vec3 rd)
         pos = ro + rd * total_dist;
 
         // calculate distance from scene
-        phong dist = sdfScene(pos);
+        vec4 dist = sdfScene(pos);
         
         // if close to the scene, color the pixel as needed 
-        if(dist.sdf <= 0.001){
+        if(dist.w <= 0.001){
             // Basic Phong illumination
-            // ambient
-            vec3 ambient = lightColor*dist.data.ambient;
-
             // diffuse
             lightDir = normalize(lightPos - pos);
             float diff = max(dot(sceneNormal(pos), lightDir), 0.0);
-            vec3 diffuse = diff * dist.data.diffuse;
+            vec3 diffuse = diff * lightColor;
 
             // specular
             vec3 viewDir = normalize(u_camorigin - pos);
             vec3 reflectDir = reflect(-lightDir, sceneNormal(pos));
 
-            float spec = pow(max(dot(viewDir, reflectDir), 0.0), dist.data.shininess);
-            vec3 specular = lightColor * spec * dist.data.specular;
+            float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32);
+            vec3 specular = specularStrength * spec * lightColor;
 
-            return (vec3(0.1) * ambient + vec3(0.45) * diffuse +vec3(0.45) *  specular);
+            return (ambient + diffuse + specular) * dist.xyz;
         }
 
         // increment distance by the highest possible value (sphere marching)
-        total_dist += dist.sdf;
+        total_dist += dist.w;
 
         // if too far out, bail out
         if(total_dist > 1000) break;
