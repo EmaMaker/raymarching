@@ -6,103 +6,104 @@ uniform float u_deltatime;
 uniform vec3 u_camorigin;
 uniform vec3 u_camdir;
 uniform vec3 u_camup;
-
 out vec4 FragColor;
 
-<<<<<<< HEAD
-vec3 sphere1Color = vec3(1.0, 0.0, 0.0);
-vec3 box1Color = vec3(0.0, 1.0, 0.0);
-vec3 box2Color = vec3(0.0, 0.0, 1.0);
-vec3 boxLightColor = vec3( 1.0);
 
-<<<<<<< HEAD
 // START OF LIGHTNING
+float ambientStrength = 0.20;
+float specularStrength = 0.5;
 vec3 lightColor = vec3(1.0);
+vec3 ambient = lightColor * ambientStrength;
 vec3 lightPos = vec3(5.0);
-vec3 lightDir;
 // END OF LIGHTNING
 
-struct phongdata{
+
+struct Phong{
     vec3 ambient;
     vec3 diffuse;
     vec3 specular;
     float shininess;
-};
 
-struct phong{
-    phongdata data;
     float sdf;
-};
+} phong;
 
 // START OF SDFs
-float sdfSphere(in vec3 point, in vec3 center, float r)
+phong sdfSphere(in phong color, in vec3 point, in vec3 center, float r)
 {
-    return length(point - center) - r;
+    color.sdf = length(point - center) - r;
+    return color;
 }
 
-float sdfBox(in vec3 point, in vec3 center, in vec3 b){
+phong sdfBox(in phong color, in vec3 point, in vec3 center, in vec3 b){
   vec3 q = abs(point - center) - b;
-  return length(max(q,0.0)) + min(max(q.x,max(q.y,q.z)),0.0);
+  phong.sdf =   length(max(q,0.0)) + min(max(q.x,max(q.y,q.z)),0.0));
+  return color;
 }
 
-float opUnion( float d1, float d2 ) { return min(d1,d2); }
+phong opUnion( phong d1, phong d2 ) {
+    if(d1.sdf < d2.sdf) return d1;
+    else return d2;
+}
 
-float sdfScene(in vec3 p){
-    return opUnion(opUnion( sdfSphere(p, vec3(0.0), 1), sdfBox(p, vec3(2.0, 0.0, 0.0), vec3(0.8))), sdfBox(p, vec3(-5.0, 0.0, 0.0), vec3(2.0, 1.0, 0.5)));
+phong phongSphere = phong(vec3(1.0, 0.0, 0.0), vec3(1.0, 0.0, 0.0), ambient, 32.0, 0.0);
+phong phongBox1 = phong(vec3(0.0, 1.0, 0.0), vec3(1.0, 0.0, 0.0), ambient, 32.0, 0.0);
+phong phongBox2 = phong(vec3(0.0, 1.0, 0.0), vec3(1.0, 0.0, 0.0), ambient, 32.0, 0.0);
+
+phong sdfScene(in vec3 p){
+    return opUnion(
+        opUnion(
+            sdfSphere(phongSphere, p, vec3(0.0), 1), 
+            sdfBox(phongBox1, p, vec3(2.0, 0.0, 0.0), vec3(0.8))
+        ), 
+        sdfBox(phongBox2, p, vec3(-5.0, 0.0, 0.0), vec3(2.0, 1.0, 0.5))
+    );
 }
 // END OF SDFs
 
 vec3 sceneNormal(in vec3 p){
     vec3 smallstep = vec3(0.00001, 0.0, 0.0);
+    float dist = sdfScene(p).sdf;
 
-    float gradient_x = sdfScene(p.xyz + smallstep.xyy) - sdfScene(p.xyz - smallstep.xyy);
-    float gradient_y = sdfScene(p.xyz + smallstep.yxy) - sdfScene(p.xyz - smallstep.yxy);
-    float gradient_z = sdfScene(p.xyz + smallstep.yyx) - sdfScene(p.xyz - smallstep.yyx);
+    float gradient_x = sdfScene(p.xyz + smallstep.xyy).sdf - dist;
+    float gradient_y = sdfScene(p.xyz + smallstep.yxy).sdf - dist;
+    float gradient_z = sdfScene(p.xyz + smallstep.yyx).sdf - dist;
 
     return normalize(vec3(gradient_x, gradient_y, gradient_z));
 }
 
-// START OF LIGHTNING
-float ambientStrength = 0.15;
-float specularStrength = 0.5;
-vec3 lightColor = vec3(1.0);
-vec3 ambient = lightColor * ambientStrength;
-vec3 lightPos = vec3(5.0);
-vec3 lightDir;
-// END OF LIGHTNING
 
 vec3 ray_march(in vec3 ro, in vec3 rd)
 {
     float total_dist = 0.0;
     vec3 pos;
 
-    for(int i = 0; i < 35; i++){
+    for(int i = 0; i < 100; i++){
         // incrementally travel following the ray
         pos = ro + rd * total_dist;
 
         // calculate distance from scene
-        float dist = sdfScene(pos);
+        phong dist = sdfScene(pos);
         
         // if close to the scene, color the pixel as needed 
-        if(dist <= 0.001){
+        if(dist.sdf <= 0.001){
             // Basic Phong illumination
             // diffuse
             lightDir = normalize(lightPos - pos);
             float diff = max(dot(sceneNormal(pos), lightDir), 0.0);
-            vec3 diffuse = diff * lightColor;
+            vec3 diffuse = diff * dist.diffuse;
 
             // specular
             vec3 viewDir = normalize(u_camorigin - pos);
             vec3 reflectDir = reflect(-lightDir, sceneNormal(pos));
 
             float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32);
-            vec3 specular = specularStrength * spec * lightColor;
+            vec3 specular = dist.shininess * spec * dist.specular;
 
-            return (ambient + diffuse + specular) * vec3(1.0, 0.0, 0.0);
+            return (dist.ambient + diffuse + specular) * dist.ambient;
         }
 
         // increment distance by the highest possible value (sphere marching)
-        total_dist += dist;
+        total_dist += dist.sdf;
 
         // if too far out, bail out
         if(total_dist > 1000) break;
@@ -129,5 +130,5 @@ void main()
     vec3 rd = normalize(uv.x * camright + uv.y * camup + u_camdir * fPersp);
 
     vec3 shaded_color = ray_march(u_camorigin, rd);
-    FragColor = vec4(shaded_color, 1.0);
+    gl_FragColor = vec4(shaded_color, 1.0);
 }
