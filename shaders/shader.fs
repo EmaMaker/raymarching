@@ -9,33 +9,12 @@ uniform vec3 u_camorigin;
 uniform vec3 u_camdir;
 uniform vec3 u_camup;
 
-<<<<<<< HEAD
 out vec4 FragColor;
 
-<<<<<<< HEAD
 vec3 sphere1Color = vec3(1.0, 0.0, 0.0);
 vec3 box1Color = vec3(0.0, 1.0, 0.0);
 vec3 box2Color = vec3(0.0, 0.0, 1.0);
 vec3 boxLightColor = vec3( 1.0);
-
-<<<<<<< HEAD
-// START OF LIGHTNING
-vec3 lightColor = vec3(1.0);
-vec3 lightPos = vec3(5.0);
-vec3 lightDir;
-// END OF LIGHTNING
-
-struct phongdata{
-    vec3 ambient;
-    vec3 diffuse;
-    vec3 specular;
-    float shininess;
-};
-
-struct phong{
-    phongdata data;
-    float sdf;
-};
 
 // START OF SDFs
 float sdfSphere(in vec3 point, in vec3 center, float r)
@@ -43,17 +22,30 @@ float sdfSphere(in vec3 point, in vec3 center, float r)
     return length(point - center) - r;
 }
 
-float sdfBox(in vec3 point, in vec3 center, in vec3 b){
-  vec3 q = abs(point - center) - b;
+float sdfBox(in vec3 point, in vec3 b){
+  vec3 q = abs(point) - b;
   return length(max(q,0.0)) + min(max(q.x,max(q.y,q.z)),0.0);
 }
 
 float opUnion( float d1, float d2 ) { return min(d1,d2); }
 
-float sdfScene(in vec3 p){
-    return opUnion(opUnion( sdfSphere(p, vec3(0.0), 1), sdfBox(p, vec3(2.0, 0.0, 0.0), vec3(0.8))), sdfBox(p, vec3(-5.0, 0.0, 0.0), vec3(2.0, 1.0, 0.5)));
+vec3 opFiniteRepeat(in vec3 pos, in vec3 start, in vec3 reps, in vec3 replength){    
+    vec3 m = mod(reps, 2); // 0 if even, 1 if odd
+    vec3 m1 = vec3(1.0) - m; //1 if even , 0 if odd
+    
+    vec3 s = vec3(start+0.5*m1*replength);
+
+    vec3 d = round((pos-s) / replength);
+
+    vec3 r1 = (reps-m)*0.5;
+    vec3 r = clamp(d, -r1, r1 - m1 ); //m - vec3(1.0) should be the same;
+
+    return pos-s-r*replength;
 }
 
+float sdfScene(in vec3 p){
+    return opUnion( sdfSphere(p, vec3(0.0), 1), sdfBox(opFiniteRepeat(p, vec3(0.0), vec3(2.0, 3.0, 5.0), vec3(3.0+1.0+sin(u_time))), vec3(0.8)));
+}
 
 vec3 sceneNormal(in vec3 p){
     vec3 smallstep = vec3(0.0001, 0.0, 0.0);
