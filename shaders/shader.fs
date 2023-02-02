@@ -81,6 +81,9 @@ phong opDifference( phong d1, phong d2 ) {
     else return d2;
 }
 
+vec3 opInfiniteRepeat(vec3 pos, vec3 replength){
+    return mod(pos+replength*0.5, replength) - replength*0.5;
+}
 //works well if bounding box of object < replength
 //reps is the number of times the pattern gets repeated on each axis in each direction (e.g. 1 -> 1 up and 1 down)
 vec3 opFiniteRepeat(vec3 pos, vec3 start, vec3 reps, vec3 replength){
@@ -110,14 +113,13 @@ vec3 rl = vec3(4.0, 2.0, 4.0);
 
 phong sdfScene(in vec3 p){
     return  opUnion(
-            opSmoothUnion(
-                phong(phongSphere, sdfSphere(opFiniteRepeat2(p, vec3(0.0, sin(2*u_time), 0.0), r, rl), 0.4)),
+            opUnion(
+                phong(phongSphere, sdfSphere(opInfiniteRepeat(p, 2*rl), 0.4)),
                 phong(phongBox1, 
                     sdfBox(opFiniteRepeat2(p, s, r, rl), 
                             vec3(0.5, 0.1, 0.5) 
                         )
-                    ),
-                0.4
+                    )
             ),
             opDifference(
                 phong(phongSphere, sdfSphere(p-vec3(0.0, 5.0, 0.0), 0.25 + 0.25* (1+sin(u_time)))),
