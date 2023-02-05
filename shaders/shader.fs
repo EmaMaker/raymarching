@@ -185,7 +185,7 @@ vec3 ray_march(in vec3 ro, in vec3 rd)
     float total_dist = 0.0;
     vec3 pos;
 
-    for(float i = 0; i < 100; i++){
+    for(float i = 0; i < 400; i++){
         // incrementally travel following the ray
         pos = ro + rd * total_dist;
 
@@ -193,7 +193,7 @@ vec3 ray_march(in vec3 ro, in vec3 rd)
         phong dist = sdfScene(pos);
         
         // if close to the scene, color the pixel as needed 
-        if(dist.sdf <= 0.01){
+        if(dist.sdf <= 0.000025 * i){
             // Basic Phong illumination
             // ambient
             vec3 ambient = lightColor*dist.data.ambient;
