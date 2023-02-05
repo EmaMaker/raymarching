@@ -16,7 +16,7 @@ vec3 boxLightColor = vec3( 1.0);
 
 // START OF LIGHTNING
 vec3 lightColor = vec3(1.0);
-vec3 lightPos = vec3(5.0);
+vec3 lightPos = vec3(50.0);
 vec3 lightDir;
 // END OF LIGHTNING
 
@@ -36,6 +36,7 @@ phongdata phongSphere = phongdata(vec3(1.0, 0.0, 0.0), vec3(1.0, 0.0, 0.0), vec3
 phongdata phongBox1 = phongdata(vec3(0.0, 1.0, 0.0), vec3(0.0, 1.0, 0.0), vec3(0.0, 1.0, 0.0), 32.0);
 phongdata phongBox2 = phongdata(vec3(0.0, 0.0, 1.0), vec3(0.0, 0.0, 1.0), vec3(0.0, 0.0, 1.0), 32.0);
 phongdata phongLightBox = phongdata(lightColor, lightColor, lightColor,  256.0);
+phongdata phongPlane = phongdata(vec3(1.0, 0.0, 0.0), vec3(1.0, 0.0, 0.0), vec3(0.0), 2.0);
 
 // START OF SDFs
 float sdfSphere(in vec3 point, float r)
@@ -48,10 +49,17 @@ float sdfBox(in vec3 point, in vec3 b){
   return length(max(q,0.0)) + min(max(q.x,max(q.y,q.z)),0.0);
 }
 
+float sdfPlane( vec3 p, vec3 n, float h )
+{
+  // n must be normalized
+  return dot(p,n) + h;
+}
+
 phong opUnion( phong d1, phong d2 ) {
     if(d1.sdf < d2.sdf) return d1;
     else return d2;
 }
+
 
 phong opSmoothUnion( phong d1, phong d2, float k ) {
     float h = clamp( 0.5 + 0.5*(d2.sdf-d1.sdf)/k, 0.0, 1.0 );
@@ -112,20 +120,17 @@ vec3 r = vec3(3.0, 5.0, 2.0);
 vec3 rl = vec3(4.0, 2.0, 4.0);
 
 phong sdfScene(in vec3 p){
-    return  opUnion(
-            opUnion(
-                phong(phongSphere, sdfSphere(opInfiniteRepeat(p, 2*rl), 0.4)),
-                phong(phongBox1, 
-                    sdfBox(opFiniteRepeat2(p, s, r, rl), 
-                            vec3(0.5, 0.1, 0.5) 
-                        )
-                    )
-            ),
+    phong res = phong(phongPlane, sdfPlane(p, vec3(0.0, 1.0, 0.0), 0.4));
+    //res = opUnion(res, phong(phongSphere, sdfSphere(opFiniteRepeat2(p, s, r, rl), 0.4)));
+    //res = opUnion(res, phong(phongBox1, sdfBox(opFiniteRepeat2(p, s, r, rl), vec3(0.5, 0.1, 0.5))));
+
+    phong res1 = 
             opDifference(
-                phong(phongSphere, sdfSphere(p-vec3(0.0, 5.0, 0.0), 0.25 + 0.25* (1+sin(u_time)))),
-                phong(phongBox2, sdfBox(p-vec3(0.0, 5.0, 0.0), vec3(0.5)))
-            )
-        );
+                phong(phongSphere, sdfSphere(p-vec3(0.0, 1.0, 0.0), 1.0 + (1+sin(u_time)))),
+                phong(phongBox2, sdfBox(p-vec3(0.0, 1.0, 0.0), vec3(2.0))));
+    res = opUnion(res, res1);
+    res = opUnion(res, phong(phongLightBox, sdfBox(p-lightPos, vec3(0.5))));
+    return res;
 }
 // END OF SDFs
 
@@ -140,12 +145,31 @@ vec3 sceneNormal(in vec3 p){
     return normalize(vec3(gradient_x, gradient_y, gradient_z));
 }
 
+float shadow(in vec3 ro, in vec3 rd, float k){
+    float res = 1.0;
+    float ph = 1e10;
+    float tmin=0.1, tmax=3.0;
+    float t=tmin;
+    
+    for(int i = 0; i < 32; i++){
+	float h = sdfScene(ro + rd*t).sdf;
+	if(h < 0.01) return 0.0;
+	float y = h*h/(2.0*ph);
+	float d = sqrt(h*h-y*y);
+	res = min(res, k*d/max(0.0, t-y));
+	t+=h;
+	if(res < 0.0001 || t > tmax) break;
+    }
+    res = clamp( res, 0.0, 1.0 );
+    return res*res*(3.0-2.0*res);
+}
+
 vec3 ray_march(in vec3 ro, in vec3 rd)
 {
     float total_dist = 0.0;
     vec3 pos;
 
-    for(int i = 0; i < 100; i++){
+    for(float i = 0; i < 100; i++){
         // incrementally travel following the ray
         pos = ro + rd * total_dist;
 
@@ -153,7 +177,7 @@ vec3 ray_march(in vec3 ro, in vec3 rd)
         phong dist = sdfScene(pos);
         
         // if close to the scene, color the pixel as needed 
-        if(dist.sdf <= 0.001){
+        if(dist.sdf <= 0.01){
             // Basic Phong illumination
             // ambient
             vec3 ambient = lightColor*dist.data.ambient;
@@ -170,7 +194,9 @@ vec3 ray_march(in vec3 ro, in vec3 rd)
             float spec = pow(max(dot(viewDir, reflectDir), 0.0), dist.data.shininess);
             vec3 specular = lightColor * spec * dist.data.specular;
 
-            return (vec3(0.1) * ambient + vec3(0.45) * diffuse +vec3(0.45) *  specular);
+            vec3 color = (vec3(0.5) * ambient + (vec3(0.3) * diffuse +vec3(0.2) *  specular)*shadow(pos, normalize(lightPos), 32.0));
+	    
+	    return color ;
         }
 
         // increment distance by the highest possible value (sphere marching)
@@ -182,7 +208,7 @@ vec3 ray_march(in vec3 ro, in vec3 rd)
     }
 
     // no hit, return background color
-    return vec3(0.0);
+    return vec3(0.0, 0.8, 1.0);
 }
 
 void main()
