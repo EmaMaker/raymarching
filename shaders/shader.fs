@@ -164,6 +164,22 @@ float shadow(in vec3 ro, in vec3 rd, float k){
     return res*res*(3.0-2.0*res);
 }
 
+float calcAO( in vec3 pos, in vec3 nor )
+{
+	float occ = 0.0;
+    float sca = 1.0;
+    for( int i=0; i<5; i++ )
+    {
+        float h = 0.01 + 0.12*float(i)/4.0;
+        float d = sdfScene( pos + h*nor ).sdf;
+        occ += (h-d)*sca;
+        sca *= 0.95;
+        if( occ>0.35 ) break;
+    }
+    return clamp( 1.0 - 3.0*occ, 0.0, 1.0 ) * (0.5+0.5*nor.y);
+}
+
+
 vec3 ray_march(in vec3 ro, in vec3 rd)
 {
     float total_dist = 0.0;
@@ -194,7 +210,7 @@ vec3 ray_march(in vec3 ro, in vec3 rd)
             float spec = pow(max(dot(viewDir, reflectDir), 0.0), dist.data.shininess);
             vec3 specular = lightColor * spec * dist.data.specular;
 
-            vec3 color = (vec3(0.5) * ambient + (vec3(0.3) * diffuse +vec3(0.2) *  specular)*shadow(pos, normalize(lightPos), 32.0));
+            vec3 color = (vec3(0.5) * ambient + (vec3(0.3) * diffuse +vec3(0.2) *  specular)*shadow(pos, normalize(lightPos), 32.0))*calcAO(pos, sceneNormal(pos));
 	    
 	    return color ;
         }
