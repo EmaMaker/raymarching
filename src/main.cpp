@@ -18,6 +18,7 @@ void mouse_callback(GLFWwindow *window, double xpos, double ypos);
 void processInput(GLFWwindow *);
 
 Camera camera;
+Shader* theShader;
 
 int main()
 {
@@ -90,8 +91,8 @@ int main()
     glEnableVertexAttribArray(0);
 
     // Shader with dummy vertex shader
-    Shader theShader("shaders/shader.vs", "shaders/shader.fs");
-    theShader.use();
+    theShader = new Shader("shaders/shader.vs", "shaders/shader.fs");
+    theShader->use();
 
     float lastFrame = glfwGetTime(), deltaTime = 0;
     int width, height;
@@ -116,16 +117,16 @@ int main()
         glBindVertexArray(VAO);
         
         camera.update(window, deltaTime);
-        theShader.use();
+        theShader->use();
         // std::cout << width << "*" << height << "\n";
-        theShader.setVec2("u_resolution", (float)width, (float)height);
-        theShader.setFloat("u_time", currentFrame);
-        theShader.setFloat("u_deltatime", deltaTime);
-        theShader.setVec3("u_camorigin", camera.getPos());
-        theShader.setVec3("u_camdir", camera.getFront());
-        theShader.setVec3("u_camup", camera.getUp());
-        theShader.setMat4("u_projection", camera.getProjection());
-        theShader.setMat4("u_view", camera.getView());
+        theShader->setVec2("u_resolution", (float)width, (float)height);
+        theShader->setFloat("u_time", currentFrame);
+        theShader->setFloat("u_deltatime", deltaTime);
+        theShader->setVec3("u_camorigin", camera.getPos());
+        theShader->setVec3("u_camdir", camera.getFront());
+        theShader->setVec3("u_camup", camera.getUp());
+        theShader->setMat4("u_projection", camera.getProjection());
+        theShader->setMat4("u_view", camera.getView());
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 
         
@@ -153,4 +154,9 @@ void processInput(GLFWwindow *window)
 
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
         glfwSetWindowShouldClose(window, true);
+    if( glfwGetKey(window, GLFW_KEY_0) == GLFW_PRESS){
+        std::cout << "Rebuilding main shader" << std::endl;
+        delete(theShader);
+        theShader = new Shader("shaders/shader.vs", "shaders/shader.fs");
+    }
 }
