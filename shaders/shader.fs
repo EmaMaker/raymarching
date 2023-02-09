@@ -166,10 +166,10 @@ vec3 sceneNormal(in vec3 p){
 float shadow(in vec3 ro, in vec3 rd, float k){
     float res = 1.0;
     float ph = 1e10;
-    float tmin=0.1, tmax=3.0;
+    float tmin=0.1, tmax=50.0;
     float t=tmin;
     
-    for(int i = 0; i < 32; i++){
+    for(int i = 0; i < 16; i++){
 	float h = sdfScene(ro + rd*t).sdf;
 	if(h < 0.01) return 0.0;
 	float y = h*h/(2.0*ph);
