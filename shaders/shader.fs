@@ -115,21 +115,39 @@ vec3 opFiniteRepeat2(in vec3 pos, in vec3 start, in vec3 reps, in vec3 replength
     return pos-s-r*replength;
 }
 
-vec3 s = vec3(0.0);
+vec3 s = vec3(0.0, 10.0, 0.0);
 vec3 r = vec3(3.0, 5.0, 2.0);
-vec3 rl = vec3(4.0, 2.0, 4.0);
+vec3 rli = vec3(4.0, 2.0, 4.0);
 
 phong sdfScene(in vec3 p){
-    phong res = phong(phongPlane, sdfPlane(p, vec3(0.0, 1.0, 0.0), 0.4));
+    phong res = phong(phongPlane, sdfPlane(p, vec3(0.0, 1.0, 0.0), 1.0));
     //res = opUnion(res, phong(phongSphere, sdfSphere(opFiniteRepeat2(p, s, r, rl), 0.4)));
     //res = opUnion(res, phong(phongBox1, sdfBox(opFiniteRepeat2(p, s, r, rl), vec3(0.5, 0.1, 0.5))));
 
-    phong res1 = 
-            opDifference(
-                phong(phongSphere, sdfSphere(p-vec3(0.0, 1.0, 0.0), 1.0 + (1+sin(u_time)))),
-                phong(phongBox2, sdfBox(p-vec3(0.0, 1.0, 0.0), vec3(2.0))));
-    res = opUnion(res, res1);
+    float fsin = sin(u_time);
+    float fsinhalf = sin(u_time);
+    float fsinhalfo = sin(u_time*0.5+0.5);
+    float fsin2 = sin(u_time*2);
+    float fsin2o = sin(u_time*2-0.5);
+
+    vec3 rl = rli*vec3(0.5+0.5*fsinhalf);
+
+    vec3 p1 = opFiniteRepeat2(p, s+2.0*vec3(0.0, fsin, 0.0), r, rl);
+    vec3 p2 = opFiniteRepeat2(p, s+2.0*vec3(0.0, fsin+fsin2o, 0.0), r, rl);
+
+    // phong res1 = 
+    //         opDifference(
+    //             phong(phongSphere, sdfSphere(p-vec3(10.0, 1.0, 0.0), 1.0 + (1+sin(u_time)))),
+    //             phong(phongBox2, sdfBox(p-vec3(10.0, 1.0, 0.0), vec3(2.0))));
+    // res = opUnion(res, res1);
     res = opUnion(res, phong(phongLightBox, sdfBox(p-lightPos, vec3(0.5))));
+
+    phong res2 = opSmoothUnion(phong(phongSphere, sdfSphere(p2, 0.5)), phong(phongBox1, sdfBox(p1, vec3(1.0, 0.2, 1.0))), 0.3);
+    res = opUnion(res, res2);
+
+    // vec3 p3 = opFiniteRepeat2(p, vec3(15.0, 5.0, 0.0), vec3(3.0), 2*vec3(2+sin(u_time)));
+    // res = opUnion(res, phong(phongLightBox, sdfBox(p3, vec3(0.8))));
+
     return res;
 }
 // END OF SDFs
