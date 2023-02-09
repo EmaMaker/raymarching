@@ -214,21 +214,23 @@ vec3 ray_march(in vec3 ro, in vec3 rd)
         if(dist.sdf <= 0.000025 * i){
             // Basic Phong illumination
             // ambient
+            vec3 normal = sceneNormal(pos);
+
             vec3 ambient = lightColor*dist.data.ambient;
 
             // diffuse
             lightDir = normalize(lightPos - pos);
-            float diff = max(dot(sceneNormal(pos), lightDir), 0.0);
+            float diff = max(dot(normal, lightDir), 0.0);
             vec3 diffuse = diff * dist.data.diffuse;
 
             // specular
             vec3 viewDir = normalize(u_camorigin - pos);
-            vec3 reflectDir = reflect(-lightDir, sceneNormal(pos));
+            vec3 reflectDir = reflect(-lightDir, normal);
 
             float spec = pow(max(dot(viewDir, reflectDir), 0.0), dist.data.shininess);
             vec3 specular = lightColor * spec * dist.data.specular;
 
-            vec3 color = (vec3(0.5) * ambient + (vec3(0.3) * diffuse +vec3(0.2) *  specular)*shadow(pos, normalize(lightPos), 32.0))*calcAO(pos, sceneNormal(pos));
+            vec3 color = (vec3(0.5) * ambient + (vec3(0.3) * diffuse +vec3(0.2) *  specular)*shadow(pos, normalize(lightPos), 32.0))*calcAO(pos, normal);
 	    
 	    return color ;
         }
